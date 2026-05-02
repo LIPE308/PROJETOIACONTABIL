@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>Assistente Contábil - IA</title>
+</head>
+<body>
+    <div class="container">
+        <h1>🧮 Assistente Contábil</h1>
+        <p class="subtitulo">Classificação automática de lançamentos</p>
+        
+        <div class="input-group">
+            <label for="entrada">Descreva a transação:</label>
+            <textarea 
+                id="entrada" 
+                placeholder="Ex: Pagamento de aluguel comercial no valor de R$ 2.500,00 referente ao mês de maio"
+                rows="4"
+            ></textarea>
+        </div>
+        
+        <button onclick="gerar()">
+            <span id="button-text">🔍 Classificar Lançamento</span>
+        </button>
+
+        <div class="resposta-container" id="resposta-container" style="display: none;">
+            <div id="resposta"></div>
+            <button class="btn-copiar" onclick="copiarResposta()" style="display: none;" id="btn-copiar">
+                📋 Copiar para Área de Transferência
+            </button>
+        </div>
+
+        <div class="exemplos">
+            <h3>Exemplos de uso:</h3>
+            <div class="exemplo-item" onclick="preencherExemplo(this)">
+                Pagamento de fornecedor XYZ no valor de R$ 1.500,00 com vencimento em 15/06
+            </div>
+            <div class="exemplo-item" onclick="preencherExemplo(this)">
+                Recebimento de cliente ABC referente à fatura 123/2024 no valor de R$ 3.200,00
+            </div>
+            <div class="exemplo-item" onclick="preencherExemplo(this)">
+                Compra de material de escritório na papelaria Central por R$ 150,00
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function gerar() {
+            const entrada = document.getElementById("entrada");
+            const respostaDiv = document.getElementById("resposta");
+            const respostaContainer = document.getElementById("resposta-container");
+            const buttonText = document.getElementById("button-text");
+            const button = document.querySelector("button");
+            const btnCopiar = document.getElementById("btn-copiar");
+            
+            if (!entrada.value.trim()) {
+                alert("Por favor, descreva a transação!");
+                return;
+            }
+
+            try {
+                button.disabled = true;
+                buttonText.innerHTML = '<span class="loading"></span>Classificando...';
+                respostaContainer.style.display = "block";
+                respostaDiv.innerHTML = "🤔 Analisando a transação...";
+                btnCopiar.style.display = "none";
+                
+                const texto = entrada.value;
+
+                const res = await fetch("/gerar", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ texto })
+                });
+
+                const data = await res.json();
+
+                console.log("RESPOSTA:", data);
+
+                if (data.erro) {
+                    respostaDiv.innerHTML = "❌ Erro: " + data.erro;
+                    return;
+                }
+
+                // Formata a resposta para exibição
+                let respostaFormatada = "";
+                if (Array.isArray(data) && data[0]?.generated_text) {
+                    respostaFormatada = formatarRespostaContabil(data[0].generated_text);
+                } else if (data.choices && data.choices[0]?.message?.content) {
+                    respostaFormatada = formatarRespostaContabil(data.choices[0].message.content);
+                }
+                
+                respostaDiv.innerHTML = respostaFormatada;
+                btnCopiar.style.display = "block";
+
+            } catch (error) {
+                console.error(error);
+                respostaDiv.innerHTML = "❌ Erro ao conectar com o servidor";
+            } finally {
+                button.disabled = false;
+                buttonText.textContent = "🔍 Classificar Lançamento";
+            }
+        }
+
+        function formatarRespostaContabil(texto) {
+            // Converte a resposta em um formato bonito
+            let html = '<div class="lancamento-card">';
+            
+            // Tenta extrair informações da resposta
+            const linhas = texto.split('\n');
+            
+            html += '<table class="tabela-lancamento">';
+            
+            linhas.forEach(linha => {
+                if (linha.includes('Débito') || linha.includes('Débito:')) {
+                    html += `<tr><td class="label">📌 Natureza:</td><td class="valor">${linha.trim()}</td></tr>`;
+                } else if (linha.includes('Conta') || linha.includes('conta')) {
+                    html += `<tr><td class="label">📊 Conta Contábil:</td><td class="valor">${linha.trim()}</td></tr>`;
+                } else if (linha.includes('Histórico') || linha.includes('histórico')) {
+                    html += `<tr><td class="label">📝 Histórico:</td><td class="valor">${linha.trim()}</td></tr>`;
+                } else if (linha.includes('Valor') || linha.includes('valor')) {
+                    html += `<tr><td class="label">💰 Valor:</td><td class="valor">${linha.trim()}</td></tr>`;
+                }
+            });
+            
+            html += '</table>';
+            html += '<div class="texto-completo"><strong>Resposta completa:</strong><br>' + texto.replace(/\n/g, '<br>') + '</div>';
+            html += '</div>';
+            
+            return html;
+        }
+
+        function copiarResposta() {
+            const respostaDiv = document.getElementById("resposta");
+            const texto = respostaDiv.innerText;
+            
+            navigator.clipboard.writeText(texto).then(() => {
+                const btnCopiar = document.getElementById("btn-copiar");
+                const textoOriginal = btnCopiar.textContent;
+                btnCopiar.textContent = "✅ Copiado!";
+                btnCopiar.style.background = "#28a745";
+                
+                setTimeout(() => {
+                    btnCopiar.textContent = textoOriginal;
+                    btnCopiar.style.background = "";
+                }, 2000);
+            });
+        }
+
+        function preencherExemplo(elemento) {
+            document.getElementById("entrada").value = elemento.innerText.trim();
+        }
+    </script>
+</body>
+</html>
